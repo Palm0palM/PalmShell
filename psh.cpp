@@ -20,7 +20,7 @@ using std::cin;
 using std::cout;
 
 // 主要功能函数
-void eval(string);// 解析命令的主要函数
+void eval(string);// 解析命令的核心函数
 bool parseline(string&, vector<string>&);// 拆分buf中储存的命令，存入argv中
 // ^ 这个函数返回是否是后台命令
 bool builtin_command(vector<string>&);// 分析、处理内置命令
@@ -81,7 +81,7 @@ void eval(string cmdline)
                 unix_error("waitfg: waitpid error");
             }
         } else {// 对于后台命令，输出命令的pid
-            cout << pid << " " << cmdline << endl;
+            cout << pid << " " << cmdline << std::endl;
         }
     }
 
@@ -91,7 +91,11 @@ void eval(string cmdline)
 bool builtin_command(vector<string>& argv)
 {
     if (argv[0] == "quit"){
-        cout << "Quiting Program..." << std::endl;
+        cout << "Quiting..." << std::endl;
+        exit(0);
+    } 
+    else if (argv[0] == "exit"){
+        cout << "Exiting..." << std::endl;
         exit(0);
     }
     return false;
