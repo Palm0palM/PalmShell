@@ -74,6 +74,18 @@ bool builtin_command(vector<string>& argv)
         cout << "Exiting..." << std::endl;
         exit(0);
     }
+    else if (argv[0] == "echo"){
+        string delimiter = " ";
+        for (size_t i = 1; i < (argv.size() - 1); ++i){
+            if (argv[i] == "-d"){
+                delimiter = argv[++i];
+            } else {
+                cout << argv[i] << delimiter;
+            }
+        }
+        cout << *(argv.end() - 1) << std::endl;
+        return true;
+    }
     return false;
 }
 
