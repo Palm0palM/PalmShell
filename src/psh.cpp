@@ -8,15 +8,15 @@ bool parseline(string&, vector<string>&);// 拆分buf中储存的命令，存入
 bool builtin_command(vector<string>&);// 分析、处理内置命令
 // ^ 这个函数返回是否是内置命令
 string path_display();
-// ^ 这个函数用于提示符前显示当前路径；返回应显示的路径
+// ^ 这个函数用于提示符前显示当前路径，返回应显示的路径。目前主要的功能是把路径中存在的home_path替换为 ~ 符号
 
 string prompt = "> ";// 命令提示符
-string home_path = "";
-bool is_home_tilde = true;// 这个变量控制在路径显示时，home文件夹是否被显示为~
+string home_path = "";// 记录当前用户的home路径
+bool is_home_tilde = true;// 这个变量控制在路径显示时，home文件夹是否被显示为 ~
 
 int main()
 {
-    home_path = getenv("HOME");
+    home_path = getenv("HOME");// 获取home路径
     string cmdline;// 存储用户输入
     
     while (true) {
@@ -26,6 +26,7 @@ int main()
             return 0;
         }
 
+        //解析命令
         eval(cmdline);
     }
 
@@ -94,7 +95,7 @@ bool builtin_command(vector<string>& argv)
         return true;
     }
     else if(argv[0] == "cd"){
-        if(argv.size() >= 2){
+        if(argv.size() >= 2){// cd指令需要至少一个参数，多余的参数会被无视
             cd(argv[1]);
         }else{
             cout << "cd: Need a path directory to change into" << std::endl;
@@ -145,10 +146,11 @@ bool parseline(string& buf, vector<string>& argv)
 
 string path_display(){
     auto unmodifiyed_str = fs::current_path().string();
-    if (!is_home_tilde || unmodifiyed_str.size() < home_path.size()){
+    if (!is_home_tilde || unmodifiyed_str.size() < home_path.size()){// 如果home不应显示为tilde；或者当前路径长度小于homepath不可能需要替换，则直接返回
         return unmodifiyed_str + prompt;
     }
 
+    // 这个循环用来检测路径是否存在home路径
     size_t i = 0;
     while (i < home_path.size()){
         if (unmodifiyed_str[i] == home_path[i]){
@@ -156,9 +158,10 @@ string path_display(){
         } else {
             break;
         }
-    }
-    if (i == home_path.size()){
-        if (unmodifiyed_str.size() < home_path.size()){
+    }// 循环结束后，i指向源路径中包含的home路径的下一个字符
+
+    if (i == home_path.size()){// 如果存在的话
+        if (unmodifiyed_str.size() < home_path.size()){// 处理路径就是home本身的情况
             return "~";
         }
         return "~" + unmodifiyed_str.substr(i, unmodifiyed_str.size() - 1) + prompt;
