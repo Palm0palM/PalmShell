@@ -42,7 +42,7 @@ bool not_space(unsigned char ch) {
 
 string getline_with_arrowkey(string prompt){
     char* input = readline(prompt.c_str());
-    if (!input) return "";  // 处理EOF
+    if (!input) exit(0);  // 处理EOF
 
     std::string result(input);
     free(input);

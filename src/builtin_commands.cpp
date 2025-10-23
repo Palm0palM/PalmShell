@@ -58,3 +58,9 @@ void cd(const string& obj_path){
         std::cerr << "cd: error: " << e.what() << '\n';
     }
 }
+
+void cmd_pause(){
+    cout << "Press Enter to continue..." << std::endl;
+    cin.get();
+    return;
+}

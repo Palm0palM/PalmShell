@@ -22,6 +22,7 @@
 
 #include <string>
 #include <vector>
+#include <set>
 #include <iostream>
 #include <algorithm>
 #include <filesystem>
@@ -32,6 +33,7 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <termios.h>
+#include <setjmp.h>
 
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -43,12 +45,15 @@
 
 using std::vector;
 using std::string;
+using std::set;
 using std::cin;
 using std::cout;
 namespace fs = std::filesystem;
 
 extern string prompt;
 extern string home_path;
+extern jmp_buf buf;
+extern bool is_builtin_command;
 
 int cpp_execve(vector<string>&);
 void trim(string&);

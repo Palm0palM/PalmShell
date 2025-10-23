@@ -5,28 +5,42 @@
 void eval(string);// 解析命令的核心函数
 bool parseline(string&, vector<string>&);// 拆分buf中储存的命令，存入argv中
 // ^ 这个函数返回是否是后台命令
-bool builtin_command(vector<string>&);// 分析、处理内置命令
+void builtin_command(vector<string>&);// 分析、处理内置命令
 // ^ 这个函数返回是否是内置命令
 string path_display();
 // ^ 这个函数用于提示符前显示当前路径，返回应显示的路径。目前主要的功能是把路径中存在的home_path替换为 ~ 符号
+void sigint_handler(int);
+// ^ 这个函数用于处理sigint信号，结束当下运行着的命令并回到shell
+void sigchld_handler(int);
+// ^ 这个函数用于处理sigchld信号，维护child progress列表
 
 string prompt = "> ";// 命令提示符
 string home_path = "";// 记录当前用户的home路径
 bool is_home_tilde = true;// 这个变量控制在路径显示时，home文件夹是否被显示为 ~
+bool is_builtin_command = true;// 这个变量表示当前执行的命令是否内置命令
+jmp_buf buf;// 用于内置命令下使用Ctrl + C
+set<pid_t> child_processes;// 用来存储所有子进程的pid
 
 int main()
 {
     home_path = getenv("HOME");// 获取home路径
     string cmdline;// 存储用户输入
+
+    if (signal(SIGINT, sigint_handler) == SIG_ERR){
+        unix_error("signal error");
+    }
     
     while (true) {
+        // 保存当前状态，便于按下Ctrl + C时跳转
+        setjmp(buf);
+
         cmdline = getline_with_arrowkey(path_display());
 
         if (cmdline.empty() && cin.eof()){// 如果输入结束，则退出程序
             return 0;
         }
 
-        //解析命令
+        // 解析命令
         eval(cmdline);
     }
 
@@ -48,12 +62,14 @@ void eval(string cmdline)
     }
 
     // 处理命令
-    bool is_builtin_command = builtin_command(argv);
+    builtin_command(argv);
 
     //处理外部命令
     if (!is_builtin_command) {
         argv[0] = fs::current_path().string() + '/' + argv[0];
-        if ((pid = Fork()) == 0) {
+        pid = Fork();
+        child_processes.insert(pid);
+        if (pid == 0) {
             int exe_result = cpp_execve(argv);//尝试执行外部命令
             if (exe_result < 0) {
                 cout << argv[0] << ": Command not found." << std::endl;
@@ -74,35 +90,43 @@ void eval(string cmdline)
     return;
 }
 
-bool builtin_command(vector<string>& argv)
+void builtin_command(vector<string>& argv)
 {
     if (argv[0] == "quit"){
+        is_builtin_command = true;
         cout << "Quiting..." << std::endl;
         exit(0);
-        return 0;
     } 
     else if (argv[0] == "exit"){
+        is_builtin_command = true;
         cout << "Exiting..." << std::endl;
         exit(0);
-        return 0;
     }
     else if (argv[0] == "echo"){
+        is_builtin_command = true;
         echo(argv);
-        return true;
+        return;
     }
     else if(argv[0] == "pwd"){
+        is_builtin_command = true;
         pwd();
-        return true;
+        return;
     }
     else if(argv[0] == "cd"){
+        is_builtin_command = true;
         if(argv.size() >= 2){// cd指令需要至少一个参数，多余的参数会被无视
             cd(argv[1]);
         }else{
             cout << "cd: Need a path directory to change into" << std::endl;
         }
-        return true;
+        return;
     }
-    return false;
+    else if(argv[0] == "pause"){
+        is_builtin_command = true;
+        cmd_pause();
+        return;
+    }
+    is_builtin_command = false;
 }
 
 
@@ -167,4 +191,25 @@ string path_display(){
         return "~" + unmodifiyed_str.substr(i, unmodifiyed_str.size() - 1) + prompt;
     }
     return unmodifiyed_str + prompt;
+}
+
+void sigchld_handler(int sig) {
+    int saved_errno = errno;// 维护errno状态
+    pid_t pid;
+    int status;
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {//等待子进程结束，然后将其从列表移除
+        child_processes.erase(pid);
+    }
+    errno = saved_errno;
+}
+
+void sigint_handler(int sig){
+    cout << std::endl;
+    if (is_builtin_command){//对于内置命令，恢复执行前的状态
+        longjmp(buf, 0);
+    } else {
+        for (auto pid : child_processes){//对于外部命令，关闭当前所有子进程
+            kill(pid, SIGINT);
+        }
+    }
 }
