@@ -18,6 +18,8 @@
  * getline_with_arrowkey：
  * GNU Readline库的包装函数。接受一个字符串作为Prompt
  */
+#pragma once
+
 #include <string>
 #include <vector>
 #include <iostream>

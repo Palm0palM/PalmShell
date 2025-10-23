@@ -1,5 +1,5 @@
 #include "fun_wrappers.h"
-
+#include "builtin_commands.h"
 
 // 主要功能函数
 void eval(string);// 解析命令的核心函数
@@ -69,21 +69,15 @@ bool builtin_command(vector<string>& argv)
     if (argv[0] == "quit"){
         cout << "Quiting..." << std::endl;
         exit(0);
+        return 0;
     } 
     else if (argv[0] == "exit"){
         cout << "Exiting..." << std::endl;
         exit(0);
+        return 0;
     }
     else if (argv[0] == "echo"){
-        string delimiter = " ";
-        for (size_t i = 1; i < (argv.size() - 1); ++i){
-            if (argv[i] == "-d"){
-                delimiter = argv[++i];
-            } else {
-                cout << argv[i] << delimiter;
-            }
-        }
-        cout << *(argv.end() - 1) << std::endl;
+        echo(argv);
         return true;
     }
     return false;
