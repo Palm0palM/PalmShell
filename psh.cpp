@@ -1,23 +1,5 @@
-#include <string>
-#include <vector>
-#include <iostream>
-#include <algorithm>
-#include <cstring>
+#include "fun_wrappers.h"
 
-#include <unistd.h>
-#include <errno.h>
-#include <signal.h>
-#include <fcntl.h>
-
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-
-using std::vector;
-using std::string;
-using std::cin;
-using std::cout;
 
 // 主要功能函数
 void eval(string);// 解析命令的核心函数
@@ -26,22 +8,16 @@ bool parseline(string&, vector<string>&);// 拆分buf中储存的命令，存入
 bool builtin_command(vector<string>&);// 分析、处理内置命令
 // ^ 这个函数返回是否是内置命令
 
-int cpp_execve(vector<string>&);// 将vector<string>转为vector<char*>>后再调用execve，以兼容std::string与unix的C风格接口
-void trim(string&);// 清除字符串前后的空格
-
-pid_t Fork();// 包含报错代码的fork函数
-void unix_error(string msg);// 报错函数
-
-string prompt = ">";// 提示符
+string prompt = "> ";// 命令提示符
 
 int main()
 {
     string cmdline;// 存储用户输入
 
     while (true) {
-        cout<<prompt<<" ";
-        std::getline(cin, cmdline);
-        if (cin.eof()){// 如果输入结束，则退出程序
+        cmdline = getline_with_arrowkey(prompt);
+
+        if (cmdline.empty() && cin.eof()){// 如果输入结束，则退出程序
             return 0;
         }
 
@@ -110,17 +86,13 @@ bool parseline(string& buf, vector<string>& argv)
     //拆分
     //两个迭代器分别指向一个词的第一个字符、最后一个字符的下一个字符（左闭右开）
     auto it_left = buf.begin();
-    auto it_right = std::find_if(it_left, buf.end(), [](unsigned char ch) {
-        return std::isspace(ch);
-    });
+    auto it_right = std::find_if(it_left, buf.end(), is_space);
 
     while (it_right != buf.end()){// 只有右界限不到头，就不断循环寻找下一个词
         argv.push_back(string(it_left, it_right));
         // 更新左右界限
         it_left = it_right + 1;
-        it_right = std::find_if(it_left, buf.end(), [](unsigned char ch) {
-        return std::isspace(ch);
-    });
+        it_right = std::find_if(it_left, buf.end(), is_space);
     }
     // 特殊情况：如果buf中只有一个词（没有空格）， it_right一开始就是end()，循环根本不会执行
     if (it_left != buf.end()) {
@@ -140,37 +112,3 @@ bool parseline(string& buf, vector<string>& argv)
     return false;
 }
 
-void trim(string &s) {
-    // 左
-    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) {
-        return !std::isspace(ch);
-    }));
-    // 右
-    s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) {
-        return !std::isspace(ch);
-    }).base(), s.end());
-}
-
-int cpp_execve(vector<string>& argv){
-    std::vector<char*> c_argv;
-    for (auto& arg : argv) {
-        c_argv.push_back(arg.data());
-    }
-    c_argv.push_back(nullptr);// Unix要求参数列表最后一个指针应指向NULL
-
-    return execve(c_argv[0], c_argv.data(), environ);
-}
-void unix_error(string msg)
-{
-    fprintf(stderr, "%s: %s\n", msg.c_str(), strerror(errno));
-    exit(0);
-}
-
-pid_t Fork() 
-{
-    pid_t pid;
-
-    if ((pid = fork()) < 0)
-	unix_error("Fork error");
-    return pid;
-}

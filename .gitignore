@@ -1,6 +1,6 @@
-.idea\
-cmake-build-debug\
-output\
-.vscode\
-cmake-build-debug\
+.idea/
+cmake-build-debug/
+output/
+.vscode/
+cmake-build-debug
 psh
