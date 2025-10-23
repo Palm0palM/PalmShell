@@ -24,6 +24,7 @@
 #include <vector>
 #include <iostream>
 #include <algorithm>
+#include <filesystem>
 #include <cstring>
 
 #include <unistd.h>
@@ -44,6 +45,10 @@ using std::vector;
 using std::string;
 using std::cin;
 using std::cout;
+namespace fs = std::filesystem;
+
+extern string prompt;
+extern string home_path;
 
 int cpp_execve(vector<string>&);
 void trim(string&);

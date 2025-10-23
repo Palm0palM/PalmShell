@@ -7,15 +7,20 @@ bool parseline(string&, vector<string>&);// 拆分buf中储存的命令，存入
 // ^ 这个函数返回是否是后台命令
 bool builtin_command(vector<string>&);// 分析、处理内置命令
 // ^ 这个函数返回是否是内置命令
+string path_display();
+// ^ 这个函数用于提示符前显示当前路径；返回应显示的路径
 
 string prompt = "> ";// 命令提示符
+string home_path = "";
+bool is_home_tilde = true;// 这个变量控制在路径显示时，home文件夹是否被显示为~
 
 int main()
 {
+    home_path = getenv("HOME");
     string cmdline;// 存储用户输入
-
+    
     while (true) {
-        cmdline = getline_with_arrowkey(prompt);
+        cmdline = getline_with_arrowkey(path_display());
 
         if (cmdline.empty() && cin.eof()){// 如果输入结束，则退出程序
             return 0;
@@ -42,10 +47,14 @@ void eval(string cmdline)
     }
 
     // 处理命令
-    if (!builtin_command(argv)) {
-        //处理外部命令
+    bool is_builtin_command = builtin_command(argv);
+
+    //处理外部命令
+    if (!is_builtin_command) {
+        argv[0] = fs::current_path().string() + '/' + argv[0];
         if ((pid = Fork()) == 0) {
-            if (cpp_execve(argv) < 0) {//尝试执行外部命令
+            int exe_result = cpp_execve(argv);//尝试执行外部命令
+            if (exe_result < 0) {
                 cout << argv[0] << ": Command not found." << std::endl;
                 exit(0);
             }
@@ -80,6 +89,18 @@ bool builtin_command(vector<string>& argv)
         echo(argv);
         return true;
     }
+    else if(argv[0] == "pwd"){
+        pwd();
+        return true;
+    }
+    else if(argv[0] == "cd"){
+        if(argv.size() >= 2){
+            cd(argv[1]);
+        }else{
+            cout << "cd: Need a path directory to change into" << std::endl;
+        }
+        return true;
+    }
     return false;
 }
 
@@ -98,6 +119,10 @@ bool parseline(string& buf, vector<string>& argv)
         argv.push_back(string(it_left, it_right));
         // 更新左右界限
         it_left = it_right + 1;
+        while((*it_left) == ' '){// 防止出现多个空格的情况
+            it_left++;
+        }
+
         it_right = std::find_if(it_left, buf.end(), is_space);
     }
     // 特殊情况：如果buf中只有一个词（没有空格）， it_right一开始就是end()，循环根本不会执行
@@ -118,3 +143,25 @@ bool parseline(string& buf, vector<string>& argv)
     return false;
 }
 
+string path_display(){
+    auto unmodifiyed_str = fs::current_path().string();
+    if (!is_home_tilde || unmodifiyed_str.size() < home_path.size()){
+        return unmodifiyed_str + prompt;
+    }
+
+    size_t i = 0;
+    while (i < home_path.size()){
+        if (unmodifiyed_str[i] == home_path[i]){
+            ++i;
+        } else {
+            break;
+        }
+    }
+    if (i == home_path.size()){
+        if (unmodifiyed_str.size() < home_path.size()){
+            return "~";
+        }
+        return "~" + unmodifiyed_str.substr(i, unmodifiyed_str.size() - 1) + prompt;
+    }
+    return unmodifiyed_str + prompt;
+}
