@@ -16,28 +16,15 @@ void pwd(){
     cout << fs::current_path() << std::endl;
 }
 
-void cd(const string& obj_path){
+void cd(const string& obj_path_str){
     //首先找到新路径
-    fs::path new_path;
-    if (obj_path == ".."){// 特殊情况-上一级路径
-        new_path = fs::current_path().parent_path();
-    } 
-    else if(obj_path == "."){// 特殊情况-本路径
-        new_path = fs::current_path();
-    } 
-    else if (obj_path[0] == '/'){// 绝对路径的情况
-        new_path = obj_path;
-    } 
-    else if (obj_path[0] == '~'){// 从home目录开始的情况
-        new_path = home_path + obj_path.substr(1, obj_path.size() - 1);
-    } 
-    else if(obj_path[0] == '.' && obj_path[1] == '/'){// 多此一举的相对路径（./）
-        new_path = fs::current_path().string() + obj_path.substr(1, obj_path.size() - 1);
-    }
-    else {// 其余情况-普通的相对路径
-        new_path = fs::current_path().string() + '/' + obj_path;
-    }
+    fs::path new_path = obj_path_str;
 
+    if (new_path.is_absolute()){
+        new_path = fs::canonical(new_path);
+    } else {
+        new_path = fs::current_path() / new_path;
+    }
 
     try {
         if (!fs::exists(new_path)) {// 检测目标路径是否存在
@@ -53,7 +40,7 @@ void cd(const string& obj_path){
         // 最后， 修改当前路径
         fs::current_path(new_path);
         std::cout << "Changed directory to " << fs::current_path() << '\n';
-    } 
+    }
     catch (const fs::filesystem_error& e) {
         std::cerr << "cd: error: " << e.what() << '\n';
     }
