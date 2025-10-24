@@ -52,3 +52,22 @@ string getline_with_arrowkey(string prompt){
     }
     return result;
 }
+
+bool is_cmd_arg(const string& arg, set<char>& arg_set){
+    if (arg.size() < 2){// 长度太小的参数显然不是控制参数
+        return false;
+    }
+    if (arg[0] == '-'){// 先考虑短参数
+        if (arg[1] == '-'){// 再考虑长参数
+            if (ls_longarg_shortarg.find(arg.substr(2)) != ls_longarg_shortarg.end()){
+                arg_set.insert(ls_longarg_shortarg[arg.substr(2)]);// 长参数全部以短参数形式保存
+                return true;
+            }
+        }
+        for (size_t i = 1; i < arg.size(); ++i){// 逐个添加短参数
+            arg_set.insert(arg[i]);
+        }
+        return true;
+    }
+    return false;
+}

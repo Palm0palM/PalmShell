@@ -125,6 +125,11 @@ void builtin_command(vector<string>& argv)
         }
         return;
     }
+    else if(argv[0] == "ls"){
+        is_builtin_command = true;
+        ls(argv);
+        return;
+    }
     else if(argv[0] == "pause"){
         is_builtin_command = true;
         cmd_pause();

@@ -17,12 +17,16 @@
  * 
  * getline_with_arrowkey：
  * GNU Readline库的包装函数。接受一个字符串作为Prompt
+ *
+ * is_cmd_arg：
+ * 判断一个命令参数是否控制参数（-x --word）的函数。返回是/否，如果是则将参数分离并加入set中
  */
 #pragma once
 
 #include <string>
 #include <vector>
 #include <set>
+#include <map>
 #include <iostream>
 #include <algorithm>
 #include <filesystem>
@@ -45,6 +49,7 @@
 
 using std::vector;
 using std::string;
+using std::map;
 using std::set;
 using std::cin;
 using std::cout;
@@ -54,6 +59,7 @@ extern string prompt;
 extern string home_path;
 extern jmp_buf buf;
 extern bool is_builtin_command;
+extern map<string, char> ls_longarg_shortarg;
 
 int cpp_execve(vector<string>&);
 void trim(string&);
@@ -63,5 +69,7 @@ void unix_error(string msg);
 
 bool is_space(unsigned char);
 bool not_space(unsigned char);
+
+bool is_cmd_arg(const string&, set<char>&);
 
 string getline_with_arrowkey(string prompt);
