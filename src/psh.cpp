@@ -26,8 +26,12 @@ int main()
     home_path = getenv("HOME");// 获取home路径
     string cmdline;// 存储用户输入
 
-    if (signal(SIGINT, sigint_handler) == SIG_ERR){
-        unix_error("signal error");
+    if (signal(SIGCHLD, sigchld_handler) == SIG_ERR){// 注册SIGCHLD信号处理函数
+        unix_error("sigchld setting error");
+    }
+
+    if (signal(SIGINT, sigint_handler) == SIG_ERR){// 注册SIGINT信号处理函数
+        unix_error("sigint setting error");
     }
     
     while (true) {
@@ -80,7 +84,7 @@ void eval(string cmdline)
         if (!is_bg) {// 对于非后台命令，等待命令执行完毕
             int status;
             if (waitpid(pid, &status, 0) < 0){
-                unix_error("waitfg: waitpid error");
+                unix_error("waiting: waitpid error");
             }
         } else {// 对于后台命令，输出命令的pid
             cout << pid << " " << cmdline << std::endl;
@@ -169,15 +173,15 @@ bool parseline(string& buf, vector<string>& argv)
 }
 
 string path_display(){
-    auto unmodifiyed_str = fs::current_path().string();
-    if (!is_home_tilde || unmodifiyed_str.size() < home_path.size()){// 如果home不应显示为tilde；或者当前路径长度小于homepath不可能需要替换，则直接返回
-        return unmodifiyed_str + prompt;
+    auto unmodified_str = fs::current_path().string();
+    if (!is_home_tilde || unmodified_str.size() < home_path.size()){// 如果home不应显示为tilde；或者当前路径长度小于home_path不可能需要替换，则直接返回
+        return unmodified_str + prompt;
     }
 
     // 这个循环用来检测路径是否存在home路径
     size_t i = 0;
     while (i < home_path.size()){
-        if (unmodifiyed_str[i] == home_path[i]){
+        if (unmodified_str[i] == home_path[i]){
             ++i;
         } else {
             break;
@@ -185,12 +189,12 @@ string path_display(){
     }// 循环结束后，i指向源路径中包含的home路径的下一个字符
 
     if (i == home_path.size()){// 如果存在的话
-        if (unmodifiyed_str.size() < home_path.size()){// 处理路径就是home本身的情况
+        if (unmodified_str.size() < home_path.size()){// 处理路径就是home本身的情况
             return "~";
         }
-        return "~" + unmodifiyed_str.substr(i, unmodifiyed_str.size() - 1) + prompt;
+        return "~" + unmodified_str.substr(i, unmodified_str.size() - 1) + prompt;
     }
-    return unmodifiyed_str + prompt;
+    return unmodified_str + prompt;
 }
 
 void sigchld_handler(int sig) {
@@ -200,7 +204,7 @@ void sigchld_handler(int sig) {
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {//等待子进程结束，然后将其从列表移除
         child_processes.erase(pid);
     }
-    errno = saved_errno;
+    errno = saved_errno;// 恢复errno状态
 }
 
 void sigint_handler(int sig){

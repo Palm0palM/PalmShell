@@ -31,7 +31,7 @@ void cd(const string& obj_path){
     else if (obj_path[0] == '~'){// 从home目录开始的情况
         new_path = home_path + obj_path.substr(1, obj_path.size() - 1);
     } 
-    else if(obj_path[0] == '.' && obj_path[1] == '/'){// 多此一举的相对路径
+    else if(obj_path[0] == '.' && obj_path[1] == '/'){// 多此一举的相对路径（./）
         new_path = fs::current_path().string() + obj_path.substr(1, obj_path.size() - 1);
     }
     else {// 其余情况-普通的相对路径
