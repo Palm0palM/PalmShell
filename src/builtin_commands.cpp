@@ -103,3 +103,23 @@ void ls(const vector<string>& argv){
     }
 
 }
+
+void cmd_system(const vector<string>& argv){
+    if (argv.size() <= 1){
+        return;
+    }
+
+    string str;
+    for (int i = 1; i < (argv.size() - 1); ++i){
+        str += argv[i];
+        str += " ";
+    }
+    str += argv[argv.size() - 1];
+    system(str.c_str());
+    return;
+}
+
+void clear(){
+    system("clear");
+    return;
+}

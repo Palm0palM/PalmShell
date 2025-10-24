@@ -25,15 +25,21 @@ int main()
 {
     home_path = getenv("HOME");// 获取home路径
     string cmdline;// 存储用户输入
+    
+    struct sigaction sa;
+    sa.sa_flags = SA_RESTART;
+    sigemptyset(&sa.sa_mask);
 
-    if (signal(SIGCHLD, sigchld_handler) == SIG_ERR){// 注册SIGCHLD信号处理函数
+    sa.sa_handler = sigchld_handler;
+    if (sigaction(SIGCHLD, &sa, NULL) < 0){// 注册SIGCHLD信号处理函数
         unix_error("sigchld setting error");
     }
 
-    if (signal(SIGINT, sigint_handler) == SIG_ERR){// 注册SIGINT信号处理函数
+    sa.sa_handler = sigint_handler;
+    if (sigaction(SIGINT, &sa, NULL) < 0){// 注册SIGINT信号处理函数
         unix_error("sigint setting error");
     }
-    
+
     while (true) {
         // 保存当前状态，便于按下Ctrl + C时跳转
         setjmp(buf);
@@ -61,6 +67,9 @@ void eval(string cmdline)
     // 拆分
     is_bg = parseline(cmdline, argv);
 
+    // 默认为非内置命令
+    is_builtin_command = false;
+
     if (argv.empty()){// 无视空行
         return;
     }
@@ -72,7 +81,6 @@ void eval(string cmdline)
     if (!is_builtin_command) {
         argv[0] = fs::current_path().string() + '/' + argv[0];
         pid = Fork();
-        child_processes.insert(pid);
         if (pid == 0) {
             int exe_result = cpp_execve(argv);//尝试执行外部命令
             if (exe_result < 0) {
@@ -80,11 +88,14 @@ void eval(string cmdline)
                 exit(0);
             }
         }
+        child_processes.insert(pid);
 
         if (!is_bg) {// 对于非后台命令，等待命令执行完毕
             int status;
-            if (waitpid(pid, &status, 0) < 0){
-                unix_error("waiting: waitpid error");
+            while (waitpid(pid, &status, 0) < 0){
+                if (errno != EINTR) {
+                    unix_error("waiting: waitpid error");
+                }
             }
         } else {// 对于后台命令，输出命令的pid
             cout << pid << " " << cmdline << std::endl;
@@ -133,6 +144,16 @@ void builtin_command(vector<string>& argv)
     else if(argv[0] == "pause"){
         is_builtin_command = true;
         cmd_pause();
+        return;
+    }
+    else if(argv[0] == "system"){
+        is_builtin_command = true;
+        cmd_system(argv);
+        return;
+    }
+    else if(argv[0] == "clear"){
+        is_builtin_command = true;
+        clear();
         return;
     }
     is_builtin_command = false;
@@ -213,9 +234,8 @@ void sigchld_handler(int sig) {
 }
 
 void sigint_handler(int sig){
-    cout << std::endl;
     if (is_builtin_command){//对于内置命令，恢复执行前的状态
-        longjmp(buf, 0);
+        longjmp(buf, 1);
     } else {
         for (auto pid : child_processes){//对于外部命令，关闭当前所有子进程
             kill(pid, SIGINT);
