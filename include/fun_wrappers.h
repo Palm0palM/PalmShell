@@ -57,7 +57,7 @@ namespace fs = std::filesystem;
 
 extern string prompt;
 extern string home_path;
-extern jmp_buf buf;
+extern jmp_buf jmp_tag;
 extern bool is_builtin_command;
 extern map<string, char> ls_longarg_shortarg;
 

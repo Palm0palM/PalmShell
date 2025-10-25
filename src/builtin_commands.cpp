@@ -114,6 +114,7 @@ void cmd_system(const vector<string>& argv){
         str += argv[i];
         str += " ";
     }
+    
     str += argv[argv.size() - 1];
     system(str.c_str());
     return;

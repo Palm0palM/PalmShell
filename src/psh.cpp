@@ -9,16 +9,16 @@ void builtin_command(vector<string>&);// 分析、处理内置命令
 // ^ 这个函数返回是否是内置命令
 string path_display();
 // ^ 这个函数用于提示符前显示当前路径，返回应显示的路径。目前主要的功能是把路径中存在的home_path替换为 ~ 符号
-void sigint_handler(int);
+void sigint_handler([[maybe_unused]] int);
 // ^ 这个函数用于处理sigint信号，结束当下运行着的命令并回到shell
-void sigchld_handler(int);
+void sigchld_handler([[maybe_unused]] int);
 // ^ 这个函数用于处理sigchld信号，维护child progress列表
 
 string prompt = "> ";// 命令提示符
-string home_path = "";// 记录当前用户的home路径
+string home_path;// 记录当前用户的home路径
 bool is_home_tilde = true;// 这个变量控制在路径显示时，home文件夹是否被显示为 ~
 bool is_builtin_command = true;// 这个变量表示当前执行的命令是否内置命令
-jmp_buf buf;// 用于内置命令下使用Ctrl + C
+jmp_buf jmp_tag;// 用于内置命令下使用Ctrl + C
 set<pid_t> child_processes;// 用来存储所有子进程的pid
 
 int main()
@@ -26,23 +26,23 @@ int main()
     home_path = getenv("HOME");// 获取home路径
     string cmdline;// 存储用户输入
     
-    struct sigaction sa;
+    struct sigaction sa{};
     sa.sa_flags = SA_RESTART;
     sigemptyset(&sa.sa_mask);
 
     sa.sa_handler = sigchld_handler;
-    if (sigaction(SIGCHLD, &sa, NULL) < 0){// 注册SIGCHLD信号处理函数
+    if (sigaction(SIGCHLD, &sa, nullptr) < 0){// 注册SIGCHLD信号处理函数
         unix_error("sigchld setting error");
     }
 
     sa.sa_handler = sigint_handler;
-    if (sigaction(SIGINT, &sa, NULL) < 0){// 注册SIGINT信号处理函数
+    if (sigaction(SIGINT, &sa, nullptr) < 0){// 注册SIGINT信号处理函数
         unix_error("sigint setting error");
     }
 
     while (true) {
         // 保存当前状态，便于按下Ctrl + C时跳转
-        setjmp(buf);
+        setjmp(jmp_tag);
 
         cmdline = getline_with_arrowkey(path_display());
 
@@ -53,10 +53,7 @@ int main()
         // 解析命令
         eval(cmdline);
     }
-
-    return 0;
 }
-
 
 void eval(string cmdline)
 {
@@ -101,8 +98,6 @@ void eval(string cmdline)
             cout << pid << " " << cmdline << std::endl;
         }
     }
-
-    return;
 }
 
 void builtin_command(vector<string>& argv)
@@ -171,7 +166,7 @@ bool parseline(string& buf, vector<string>& argv)
     auto it_right = std::find_if(it_left, buf.end(), is_space);
 
     while (it_right != buf.end()){// 只有右界限不到头，就不断循环寻找下一个词
-        argv.push_back(string(it_left, it_right));
+        argv.emplace_back(it_left, it_right);
         // 更新左右界限
         it_left = it_right + 1;
         while((*it_left) == ' '){// 防止出现多个空格的情况
@@ -182,7 +177,7 @@ bool parseline(string& buf, vector<string>& argv)
     }
     // 特殊情况：如果buf中只有一个词（没有空格）， it_right一开始就是end()，循环根本不会执行
     if (it_left != buf.end()) {
-        argv.push_back(string(it_left, buf.end()));
+        argv.emplace_back(it_left, buf.end());
     }
     
 
@@ -223,7 +218,18 @@ string path_display(){
     return unmodified_str + prompt;
 }
 
-void sigchld_handler(int sig) {
+
+void sigint_handler([[maybe_unused]] int sig){
+    if (is_builtin_command){//对于内置命令，恢复执行前的状态
+        longjmp(jmp_tag, 1);
+    } else {
+        for (auto pid : child_processes){//对于外部命令，关闭当前所有子进程
+            kill(pid, SIGINT);
+        }
+    }
+}
+
+void sigchld_handler([[maybe_unused]] int sig) {
     int saved_errno = errno;// 维护errno状态
     pid_t pid;
     int status;
@@ -231,14 +237,4 @@ void sigchld_handler(int sig) {
         child_processes.erase(pid);
     }
     errno = saved_errno;// 恢复errno状态
-}
-
-void sigint_handler(int sig){
-    if (is_builtin_command){//对于内置命令，恢复执行前的状态
-        longjmp(buf, 1);
-    } else {
-        for (auto pid : child_processes){//对于外部命令，关闭当前所有子进程
-            kill(pid, SIGINT);
-        }
-    }
 }
