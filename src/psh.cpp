@@ -2,8 +2,8 @@
 #include "builtin_commands.h"
 #include <stdexcept>
 
-// A custom exception to be thrown on SIGINT
-struct InterruptException : public std::exception {
+// 用于非本地跳转的异常
+struct interrupt_exception : public std::exception {
     [[nodiscard]] const char* what() const noexcept override {
         return "SIGINT received";
     }
@@ -33,17 +33,19 @@ int main()
     home_path = getenv("HOME");// 获取home路径
     string cmdline;// 存储用户输入
     
-    struct sigaction sa{};
-    sa.sa_flags = SA_RESTART;
-    sigemptyset(&sa.sa_mask);
-
-    sa.sa_handler = sigchld_handler;
-    if (sigaction(SIGCHLD, &sa, nullptr) < 0){// 注册SIGCHLD信号处理函数
+    struct sigaction sa_chld{};
+    sa_chld.sa_flags = SA_RESTART;// SIGCHLD的处理方式为常用的SA_RESTART
+    sigemptyset(&sa_chld.sa_mask);
+    sa_chld.sa_handler = sigchld_handler;
+    if (sigaction(SIGCHLD, &sa_chld, nullptr) < 0){// 注册SIGCHLD信号处理函数
         unix_error("sigchld setting error");
     }
 
-    sa.sa_handler = sigint_handler;
-    if (sigaction(SIGINT, &sa, nullptr) < 0){// 注册SIGINT信号处理函数
+    struct sigaction sa_int{};
+    sa_int.sa_handler = sigint_handler;
+    sigemptyset(&sa_int.sa_mask);
+    sa_int.sa_flags = 0; // SIGINT不使用SA_RESTART，防止waitpid被重启
+    if (sigaction(SIGINT, &sa_int, nullptr) < 0){// 注册SIGINT信号处理函数
         unix_error("sigint setting error");
     }
 
@@ -57,7 +59,7 @@ int main()
 
             // 解析命令
             eval(cmdline);
-        } catch (const InterruptException& e) {
+        } catch (const interrupt_exception& e) {
             // 当SIGINT信号被捕获时，打印一个新行并继续，以显示新的提示符
             cout << std::endl;
         }
@@ -98,11 +100,12 @@ void eval(string cmdline)
 
         if (!is_bg) {// 对于非后台命令，等待命令执行完毕
             int status;
-            while (waitpid(pid, &status, 0) < 0){
+            if (waitpid(pid, &status, 0) < 0) {
                 if (errno != EINTR) {
                     unix_error("waiting: waitpid error");
                 }
             }
+            child_processes.erase(pid);// 清除后台进程的记录
         } else {// 对于后台命令，输出命令的pid
             cout << pid << " " << cmdline << std::endl;
         }
@@ -232,7 +235,7 @@ void sigint_handler([[maybe_unused]] int sig){
     if (is_builtin_command){//对于内置命令，恢复执行前的状态
         // 注意：从信号处理程序中抛出异常通常是未定义的行为。
         // 这可能在某些系统上起作用（例如带有GCC的Linux），但它不可移植或保证安全。
-        throw InterruptException();
+        throw interrupt_exception();
     } else {
         for (auto pid : child_processes){//对于外部命令，关闭当前所有子进程
             kill(pid, SIGINT);
@@ -240,7 +243,7 @@ void sigint_handler([[maybe_unused]] int sig){
     }
 }
 
-void sigchld_handler([[maybe_unused]] int sig) {
+void sigchld_handler([[maybe_unused]] int sig) {// 用于清除前台进程的记录
     int saved_errno = errno;// 维护errno状态
     pid_t pid;
     int status;
