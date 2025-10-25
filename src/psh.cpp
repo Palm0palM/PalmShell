@@ -87,7 +87,12 @@ void eval(string cmdline)
 
     //处理外部命令
     if (!is_builtin_command) {
-        argv[0] = fs::current_path().string() + '/' + argv[0];
+        if (argv[0][0] == '/' || argv[0][0] == '~') ;
+        else {
+            argv[0] = (fs::current_path() / fs::path(argv[0])).string();
+        }
+
+        cout << argv[0] << std::endl;
         pid = Fork();
         if (pid == 0) {
             int exe_result = cpp_execve(argv);//尝试执行外部命令
