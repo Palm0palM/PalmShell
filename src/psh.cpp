@@ -1,5 +1,13 @@
 #include "fun_wrappers.h"
 #include "builtin_commands.h"
+#include <stdexcept>
+
+// A custom exception to be thrown on SIGINT
+struct InterruptException : public std::exception {
+    [[nodiscard]] const char* what() const noexcept override {
+        return "SIGINT received";
+    }
+};
 
 // 主要功能函数
 void eval(string);// 解析命令的核心函数
@@ -18,7 +26,6 @@ string prompt = "> ";// 命令提示符
 string home_path;// 记录当前用户的home路径
 bool is_home_tilde = true;// 这个变量控制在路径显示时，home文件夹是否被显示为 ~
 bool is_builtin_command = true;// 这个变量表示当前执行的命令是否内置命令
-jmp_buf jmp_tag;// 用于内置命令下使用Ctrl + C
 set<pid_t> child_processes;// 用来存储所有子进程的pid
 
 int main()
@@ -41,17 +48,19 @@ int main()
     }
 
     while (true) {
-        // 保存当前状态，便于按下Ctrl + C时跳转
-        setjmp(jmp_tag);
+        try {
+            cmdline = getline_with_arrowkey(path_display());
 
-        cmdline = getline_with_arrowkey(path_display());
+            if (cmdline.empty() && cin.eof()){// 如果输入结束，则退出程序
+                return 0;
+            }
 
-        if (cmdline.empty() && cin.eof()){// 如果输入结束，则退出程序
-            return 0;
+            // 解析命令
+            eval(cmdline);
+        } catch (const InterruptException& e) {
+            // 当SIGINT信号被捕获时，打印一个新行并继续，以显示新的提示符
+            cout << std::endl;
         }
-
-        // 解析命令
-        eval(cmdline);
     }
 }
 
@@ -221,7 +230,9 @@ string path_display(){
 
 void sigint_handler([[maybe_unused]] int sig){
     if (is_builtin_command){//对于内置命令，恢复执行前的状态
-        longjmp(jmp_tag, 1);
+        // 注意：从信号处理程序中抛出异常通常是未定义的行为。
+        // 这可能在某些系统上起作用（例如带有GCC的Linux），但它不可移植或保证安全。
+        throw InterruptException();
     } else {
         for (auto pid : child_processes){//对于外部命令，关闭当前所有子进程
             kill(pid, SIGINT);
